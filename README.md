@@ -8,4 +8,4 @@ Our code is based on **Python3.6+**, with **jupyter notebook**.
 
 ## Notes
 
-The results in the paper are based on averages across multiple simulation runs. To reproduce thoses results, we suggest running the simulations in parallel, for example on a cluster, since they will need a lot of memory and CPU time.
+The results in the paper are based on averages across multiple simulation runs. To reproduce those results, we suggest running the simulations in parallel, for example on a cluster, since they will need a lot of memory and CPU time.
