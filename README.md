@@ -1,4 +1,4 @@
-# Information-Pollution-by-Social-Bots
+# Manipulating the Online Marketplace of Ideas
 
 This repository contains code to reproduce the results in the paper [*Manipulating the Online Marketplace of Ideas*](https://arxiv.org/abs/1907.06130) by Xiaodan Lou, Alessandro Flammini, and [Filippo Menczer](https://cnets.indiana.edu/fil/).
 
