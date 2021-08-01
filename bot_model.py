@@ -146,9 +146,11 @@ def forgotten_memes_per_degree(n_forgotten, followers):
     forgotten_memes_per_degree.forgotten_memes[followers] = n_forgotten
 
 
-# track retweet memes
+# track number of retweets of each meme
 # using dict attribute 'track_memes' as a static variable 
 # that can be accessed as: track_memes.tracked_memes
+# NOTE: this assumes that each meme (quality, fitness) tuple is unique!
+#       Alternatively we should generate a unique ID for each meme.
 #
 def track_memes(meme):
   if not hasattr(track_memes, 'tracked_memes'):
@@ -159,10 +161,10 @@ def track_memes(meme):
     track_memes.tracked_memes[meme] = 1
 
 
-# count bad meme selected times
+# count times bad memes have been selected by humans and bots
 # using dict attribute 'bad_memes_seleted_time' as a static variable 
 # that can be accessed as: select_time.bad_memes_selected_time
-# and has prototype {"meme": [human_node_select, bot_node_select]}
+# and has prototype {"meme": [human_node_selections, bot_node_selections]}
 # 
 def select_time(meme, bot_flag):
   if not hasattr(select_time, 'bad_memes_selected_time'):
@@ -183,7 +185,8 @@ def simulation_step(G,
                     track_retweet_meme=False,
                     count_select_time=False,
                     alpha=15,
-                    mu=0.75):
+                    mu=0.75,
+                    phi=1):
 
   agent = random.choice(list(G.nodes()))
   memes_in_feed = G.nodes[agent]['feed']
@@ -195,7 +198,7 @@ def simulation_step(G,
     meme = random.choices(memes_in_feed, weights=fitnesses, k=1)[0]
   else:
     # new meme
-    meme = get_meme(G.nodes[agent]['bot'])
+    meme = get_meme(G.nodes[agent]['bot'], phi)
   
   # bookkeeping
   if track_retweet_meme:
@@ -269,12 +272,16 @@ def simulation(preferential_targeting_flag,
                return_net=False,
                count_forgotten=False,
                track_meme=False,
+               count_select=False,
                network=None, 
                verbose=False,
-               count_select=False,
-               epsilon=0.01):
+               epsilon=0.01,
+               mu=0.75,
+               phi=1,
+               gamma=0.1):
+  
   if network is None:
-    network = init_net(preferential_targeting_flag)
+    network = init_net(preferential_targeting_flag, gamma=gamma)
   n_agents = nx.number_of_nodes(network)
   old_quality = 100
   new_quality = 200
@@ -287,7 +294,7 @@ def simulation(preferential_targeting_flag,
       simulation_step(network,
                       count_forgotten_memes=count_forgotten,
                       track_retweet_meme=track_meme,
-                      count_select_time=count_select) 
+                      count_select_time=count_select, mu=mu, phi=phi) 
     old_quality = new_quality
     new_quality = measure_average_quality(network)
   if return_net:
@@ -298,8 +305,8 @@ def simulation(preferential_targeting_flag,
 
 # append to file, locking file and waiting if busy in case of multi-processing
 #
-def save_csv(data_array, cvsfile='results.csv'): 
-  with open(cvsfile, 'a', newline='') as file:
+def save_csv(data_array, csvfile='results.csv'): 
+  with open(csvfile, 'a', newline='') as file:
     while True:
       try:
         fcntl.flock(file, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -479,12 +486,12 @@ def bot_followers(G):
 # similar to main simulation but run for fixed time 
 # and return avg quality over time
 #
-def simulation_timeline(preferential_targeting_flag, max_time_steps=10):
+def simulation_timeline(preferential_targeting_flag, max_time_steps=10, gamma=0.1):
   quality_timeline = []
   for time_steps in range(max_time_steps):
      quality_timeline.append([])
   for _ in range(n_runs):
-    network = init_net(preferential_targeting_flag)
+    network = init_net(preferential_targeting_flag, gamma=gamma)
     n_agents = nx.number_of_nodes(network)
     for time_steps in range(max_time_steps):
       for _ in range(n_agents):
