@@ -115,9 +115,10 @@ def init_net(preferential_targeting, n_humans=1000, beta=0.1, gamma=0.1):
   return G
 
 
-# return (quality, fitness) tuple depending on bot flag
+# return (quality, fitness, id) meme tuple depending on bot flag
 # using https://en.wikipedia.org/wiki/Inverse_transform_sampling
 # default phi = 1 is bot deception; >= 1: meme fitness higher than quality 
+# N.B. get_meme.id is an attribute that works as a static var to get unique IDs
 #
 def get_meme(bot_flag, phi=1):
   if bot_flag:
@@ -130,7 +131,11 @@ def get_meme(bot_flag, phi=1):
     quality = 0
   else:
     quality = fitness
-  return (quality, fitness)
+  if hasattr(get_meme, 'id'):
+    get_meme.id += 1
+  else:
+    get_meme.id = 0
+  return (quality, fitness, get_meme.id)
 
 
 # count the number of forgotten memes as a function of in_degree (followers)
@@ -146,33 +151,32 @@ def forgotten_memes_per_degree(n_forgotten, followers):
     forgotten_memes_per_degree.forgotten_memes[followers] = n_forgotten
 
 
-# track number of retweets of each meme
-# using dict attribute 'track_memes' as a static variable 
-# that can be accessed as: track_memes.tracked_memes
-# NOTE: this assumes that each meme (quality, fitness) tuple is unique!
-#       Alternatively we should generate a unique ID for each meme.
+# track number of tweets and retweets of each meme
+# using dict attribute 'popularity' as a static variable 
+# that can be accessed as: track_memes.popularity and
+# has prototype {(meme_tuple): popularity}
 #
-def track_memes(meme):
-  if not hasattr(track_memes, 'tracked_memes'):
-    track_memes.tracked_memes = {}
-  if meme in track_memes.tracked_memes:
-    track_memes.tracked_memes[meme] += 1
+# in addition if quality == 0 we also track the popularity
+# by bots and humans separately using another dict attribute 
+# track_memes.bad_popularity as a static variable 
+# with prototype {"meme_id": [human_popularity, bot_popularity]}
+#
+def track_memes(meme, bot_flag):
+  if not hasattr(track_memes, 'popularity'):
+    track_memes.popularity = {}
+  if meme in track_memes.popularity:
+    track_memes.popularity[meme] += 1
   else:
-    track_memes.tracked_memes[meme] = 1
-
-
-# count times bad memes have been selected by humans and bots
-# using dict attribute 'bad_memes_seleted_time' as a static variable 
-# that can be accessed as: select_time.bad_memes_selected_time
-# and has prototype {"meme": [human_node_selections, bot_node_selections]}
-# 
-def select_time(meme, bot_flag):
-  if not hasattr(select_time, 'bad_memes_selected_time'):
-    select_time.bad_memes_selected_time = defaultdict(lambda :[0, 0])
-  if bot_flag:
-    select_time.bad_memes_selected_time[meme][1] += 1
-  else:
-    select_time.bad_memes_selected_time[meme][0] += 1
+    track_memes.popularity[meme] = 1
+  if meme[0] == 0:
+    if not hasattr(track_memes, 'bad_popularity'):
+      track_memes.bad_popularity = {}
+    oneifbot = 1 if bot_flag else 0
+    if meme[2] in track_memes.bad_popularity:
+      track_memes.bad_popularity[meme[2]][oneifbot] += 1
+    else:
+      track_memes.bad_popularity[meme[2]] = [0,0]
+      track_memes.bad_popularity[meme[2]][oneifbot] = 1
 
 
 # a single simulation step in which one agent is activated
@@ -182,8 +186,7 @@ def select_time(meme, bot_flag):
 #
 def simulation_step(G,
                     count_forgotten_memes=False,
-                    track_retweet_meme=False,
-                    count_select_time=False,
+                    track_meme=False,
                     alpha=15,
                     mu=0.75,
                     phi=1):
@@ -201,10 +204,8 @@ def simulation_step(G,
     meme = get_meme(G.nodes[agent]['bot'], phi)
   
   # bookkeeping
-  if track_retweet_meme:
-    track_memes(meme)
-  if count_select_time and meme[0] == 0:
-    select_time(meme, G.nodes[agent]['bot'])
+  if track_meme:
+    track_memes(meme, G.nodes[agent]['bot'])
 
   # spread (truncate feeds at max len alpha)
   followers = G.predecessors(agent)
@@ -272,7 +273,6 @@ def simulation(preferential_targeting_flag,
                return_net=False,
                count_forgotten=False,
                track_meme=False,
-               count_select=False,
                network=None, 
                verbose=False,
                epsilon=0.01,
@@ -293,8 +293,8 @@ def simulation(preferential_targeting_flag,
     for _ in range(n_agents):
       simulation_step(network,
                       count_forgotten_memes=count_forgotten,
-                      track_retweet_meme=track_meme,
-                      count_select_time=count_select, mu=mu, phi=phi) 
+                      track_meme=track_meme,
+                      mu=mu, phi=phi) 
     old_quality = new_quality
     new_quality = measure_average_quality(network)
   if return_net:
