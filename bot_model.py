@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# coding: utf-8
 
 ##################################################################
 # Code to (re)produce results in the paper 
@@ -11,6 +10,19 @@
 # * Need Python 3.6 or later; eg: `module load python/3.6.6`
 # * remember link direction is following, opposite of info spread!
 ##################################################################
+
+import networkx as nx
+import random
+import numpy
+import math
+import statistics
+import csv
+import matplotlib.pyplot as plt
+from operator import itemgetter
+import sys
+import fcntl
+import time
+import bot_model
 
 # create a network with random-walk growth model
 # default p = 0.5 for network clustering
