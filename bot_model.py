@@ -288,7 +288,7 @@ def simulation(preferential_targeting_flag,
                network=None, 
                verbose=False,
                epsilon=0.01,
-               mu=0.75,
+               mu=0.5,
                phi=1,
                gamma=0.1):
   
