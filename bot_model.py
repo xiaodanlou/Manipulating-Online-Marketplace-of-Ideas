@@ -84,21 +84,29 @@ def sample_with_prob_without_replacement(elements, sample_size, weights):
 # default beta=0.1 is bots/humans ratio
 # default gamma=0.1 is infiltration: probability that a human follows each bot
 #
-def init_net(preferential_targeting, n_humans=1000, beta=0.1, gamma=0.1):
+def init_net(preferential_targeting, verbose=False, targeting_criterion = 'hubs', human_network = None, n_humans=1000, beta=0.1, gamma=0.1):
 
   # humans
-  H = random_walk_network(n_humans)
+  if human_network is None:
+    if verbose: print('Generating human network...')
+    H = random_walk_network(n_humans)
+  else:
+    if verbose: print('Reading human network...')
+    H = read_empirical_network(human_network, add_feed=False)
+    n_humans = H.number_of_nodes()
   for h in H.nodes:
     H.nodes[h]['bot'] = False
 
   # bots
+  if verbose: print('Generating bot network...')
   n_bots = int(n_humans * beta) 
   B = random_walk_network(n_bots)
   for b in B.nodes:
     B.nodes[b]['bot'] = True
 
   # merge and add feed
-  # feed is array of (quality, fitness) tuples
+  # feed is array of (quality, fitness, ID) tuples
+  if verbose: print('Merging human and bot networks...')
   G = nx.disjoint_union(H, B)
   assert(G.number_of_nodes() == n_humans + n_bots)
   humans = []
@@ -111,14 +119,27 @@ def init_net(preferential_targeting, n_humans=1000, beta=0.1, gamma=0.1):
       humans.append(n)
 
   # humans follow bots
+  if verbose: print('Humans following bots...')
   w = [G.in_degree(h) for h in humans]
+  partisanship = [abs(float(G.nodes[h]['party'])) for h in humans]
+  misinformation = [float(G.nodes[h]['misinfo']) for h in humans]
+  conservative = [1 if float(G.nodes[h]['party']) > 0 else 0 for h in humans]
   for b in bots:
     n_followers = 0
     for _ in humans:
       if random.random() < gamma:
         n_followers += 1
     if preferential_targeting:
-      followers = sample_with_prob_without_replacement(humans, n_followers, w)
+      if targeting_criterion == 'hubs':
+        followers = sample_with_prob_without_replacement(humans, n_followers, w)
+      elif targeting_criterion == 'partisanship':
+        followers = sample_with_prob_without_replacement(humans, n_followers, partisanship)
+      elif targeting_criterion == 'misinformation':
+        followers = sample_with_prob_without_replacement(humans, n_followers, misinformation)
+      elif targeting_criterion == 'conservative':
+        followers = sample_with_prob_without_replacement(humans, n_followers, conservative)
+      else:
+        raise ValueError('Unrecognized targeting_criterion passed to init_net')
     else:
       followers = random.sample(humans, n_followers)
     for f in followers:
@@ -290,7 +311,8 @@ def simulation(preferential_targeting_flag,
                epsilon=0.01,
                mu=0.5,
                phi=1,
-               gamma=0.1):
+               gamma=0.1,
+               alpha=15):
   
   if network is None:
     network = init_net(preferential_targeting_flag, gamma=gamma)
@@ -306,7 +328,7 @@ def simulation(preferential_targeting_flag,
       simulation_step(network,
                       count_forgotten_memes=count_forgotten,
                       track_meme=track_meme,
-                      mu=mu, phi=phi) 
+                      mu=mu, phi=phi, alpha=alpha) 
     old_quality = new_quality
     new_quality = measure_average_quality(network)
   if return_net:
@@ -528,12 +550,12 @@ def plot_quantity_vs_degree(title, ylabel, data_dict):
 
 # READ EMPIRICAL NETWORK FROM GML FILE
 #
-def read_retweet_network(file, add_feed=True):
-    retweets = nx.read_gml(file)
+def read_empirical_network(file, add_feed=True):
+    net = nx.read_gml(file)
     if add_feed:
-        for n in retweets.nodes:
-            retweets.nodes[n]['feed'] = []
-    return retweets
+        for n in net.nodes:
+            net.nodes[n]['feed'] = []
+    return net
 
 
 # CALCULATE beta AND gamma 
