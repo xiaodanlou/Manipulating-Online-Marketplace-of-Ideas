@@ -300,7 +300,7 @@ def add_avq_to_net(G):
 # main simulation 
 # steady state is determined by small relative change in average quality
 # returns average quality at steady state 
-# default epsilon=0.01 is threshold used to check for steady-state convergence
+# default epsilon=0.001 is threshold used to check for steady-state convergence
 #
 def simulation(preferential_targeting_flag, 
                return_net=False,
@@ -308,7 +308,7 @@ def simulation(preferential_targeting_flag,
                track_meme=False,
                network=None, 
                verbose=False,
-               epsilon=0.01,
+               epsilon=0.001,
                mu=0.5,
                phi=1,
                gamma=0.1,
@@ -329,7 +329,8 @@ def simulation(preferential_targeting_flag,
                       count_forgotten_memes=count_forgotten,
                       track_meme=track_meme,
                       mu=mu, phi=phi, alpha=alpha) 
-    old_quality = new_quality
+    # smooth the previous values with a running average for convergence
+    old_quality = 0.5 * (old_quality + new_quality)
     new_quality = measure_average_quality(network)
   if return_net:
     return (new_quality, network)
