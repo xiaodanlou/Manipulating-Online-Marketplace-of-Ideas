@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 ##################################################################
 # Code to (re)produce results in the paper 
 # "Manipulating the Online Marketplace of Ideas" 
@@ -23,6 +21,28 @@ import sys
 import fcntl
 import time
 import bot_model
+
+# plot average quality (relative to baseline) vs given parameters, 
+#      for different values of other params (one per data file)
+# each filename is a csv with two columns, the first is the param and the second is average quality
+# each label is a string, eg r'$\gamma$'+'= 0.001'
+# xlabel is a string, eg r'$\theta$'
+def plot_avg_quality(data_files, labels, xlabel, log_flag=False, baseline=0.4803, path=""):
+    assert(len(data_files) == len(labels))
+    if log_flag: plt.xscale('log')
+    plt.xlabel(xlabel, fontsize=16)
+    plt.ylabel('Relative Average Quality', fontsize=16)
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    for i in range(len(data_files)):
+        data = {}
+        with open(path+data_files[i], newline='') as f:
+            reader = csv.reader(f, quoting=csv.QUOTE_NONNUMERIC)
+            for row in reader:
+                data[row[0]] = row[1] / baseline
+        plt.plot(*zip(*sorted(data.items())), label=labels[i])
+    plt.legend()
+
 
 # create a network with random-walk growth model
 # default p = 0.5 for network clustering
@@ -194,22 +214,22 @@ def forgotten_memes_per_degree(n_forgotten, followers):
 # track_memes.bad_popularity as a static variable 
 # with prototype {"meme_id": [human_popularity, bot_popularity]}
 #
-def track_memes(meme, bot_flag):
+def track_memes(meme, bot_flag, theta=1):
+  copies = theta if bot_flag else 1
   if not hasattr(track_memes, 'popularity'):
     track_memes.popularity = {}
   if meme in track_memes.popularity:
-    track_memes.popularity[meme] += 1
-  else:
-    track_memes.popularity[meme] = 1
+    track_memes.popularity[meme] += copies
+    track_memes.popularity[meme] = copies
   if meme[0] == 0:
     if not hasattr(track_memes, 'bad_popularity'):
       track_memes.bad_popularity = {}
     oneifbot = 1 if bot_flag else 0
     if meme[2] in track_memes.bad_popularity:
-      track_memes.bad_popularity[meme[2]][oneifbot] += 1
+      track_memes.bad_popularity[meme[2]][oneifbot] += copies
     else:
       track_memes.bad_popularity[meme[2]] = [0,0]
-      track_memes.bad_popularity[meme[2]][oneifbot] = 1
+      track_memes.bad_popularity[meme[2]][oneifbot] = copies
 
 
 # a single simulation step in which one agent is activated
@@ -222,7 +242,8 @@ def simulation_step(G,
                     track_meme=False,
                     alpha=15,
                     mu=0.75,
-                    phi=1):
+                    phi=1,
+                    theta=1):
 
   agent = random.choice(list(G.nodes()))
   memes_in_feed = G.nodes[agent]['feed']
@@ -238,13 +259,18 @@ def simulation_step(G,
   
   # bookkeeping
   if track_meme:
-    track_memes(meme, G.nodes[agent]['bot'])
+    track_memes(meme, G.nodes[agent]['bot'], theta)
 
   # spread (truncate feeds at max len alpha)
   followers = G.predecessors(agent)
   for f in followers:
     #print('follower feed before:', ["{0:.2f}".format(round(m[0], 2)) for m in G.nodes[f]['feed']])   
-    G.nodes[f]['feed'].insert(0, meme)
+    # add meme to top of follower's feed (theta copies if poster is bot to simulate flooding)
+    if G.nodes[agent]['bot']:
+      G.nodes[f]['feed'][0:0] = [meme] * theta
+    else:
+      G.nodes[f]['feed'].insert(0, meme)
+    # truncate feeds if needed
     if len(G.nodes[f]['feed']) > alpha:
       if count_forgotten_memes and G.nodes[f]['bot'] == False:
         # count only forgotten memes with zero quality
@@ -266,8 +292,8 @@ def measure_average_quality(G, count_bot=False):
   for agent in G.nodes:
     if count_bot == True or G.nodes[agent]['bot'] == False:
       for m in G.nodes[agent]['feed']:
+        total += m[0] 
         count += 1
-        total += m[0]
   return total / count
 
 
@@ -301,6 +327,7 @@ def add_avq_to_net(G):
 # steady state is determined by small relative change in average quality
 # returns average quality at steady state 
 # default epsilon=0.001 is threshold used to check for steady-state convergence
+# default theta=1 is the flooding factor for bots
 #
 def simulation(preferential_targeting_flag, 
                return_net=False,
@@ -312,26 +339,28 @@ def simulation(preferential_targeting_flag,
                mu=0.5,
                phi=1,
                gamma=0.1,
-               alpha=15):
+               alpha=15,
+               theta=1):
   
   if network is None:
     network = init_net(preferential_targeting_flag, gamma=gamma)
   n_agents = nx.number_of_nodes(network)
-  old_quality = 100
-  new_quality = 200
+  old_quality = 1
+  quality_diff = 1
   time_steps = 0
-  while max(old_quality, new_quality) > 0 and abs(new_quality - old_quality) / max(old_quality, new_quality) > epsilon: 
+  while quality_diff > epsilon: 
     if verbose:
-      print('time_steps = ', time_steps, ', q = ', new_quality, flush=True) 
+      print('time_steps = {}, q = {}, diff = {}'.format(time_steps, old_quality, quality_diff), flush=True) 
     time_steps += 1
     for _ in range(n_agents):
       simulation_step(network,
                       count_forgotten_memes=count_forgotten,
                       track_meme=track_meme,
-                      mu=mu, phi=phi, alpha=alpha) 
-    # smooth the previous values with a running average for convergence
-    old_quality = 0.5 * (old_quality + new_quality)
-    new_quality = measure_average_quality(network)
+                      mu=mu, phi=phi, alpha=alpha, theta=theta) 
+    # use exponential moving average for convergence
+    new_quality = 0.8 * old_quality + 0.2 * measure_average_quality(network)
+    quality_diff = abs(new_quality - old_quality) / old_quality if old_quality > 0 else 0
+    old_quality = new_quality
   if return_net:
     return (new_quality, network)
   else:
