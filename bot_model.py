@@ -162,9 +162,7 @@ def init_net(preferential_targeting, verbose=False, targeting_criterion = 'hubs'
         raise ValueError('Unrecognized targeting_criterion passed to init_net')
     else:
       followers = random.sample(humans, n_followers)
-    for f in followers:
-      G.add_edge(f, b)
-
+ 
   return G
 
 
@@ -220,6 +218,7 @@ def track_memes(meme, bot_flag, theta=1):
     track_memes.popularity = {}
   if meme in track_memes.popularity:
     track_memes.popularity[meme] += copies
+  else:
     track_memes.popularity[meme] = copies
   if meme[0] == 0:
     if not hasattr(track_memes, 'bad_popularity'):
