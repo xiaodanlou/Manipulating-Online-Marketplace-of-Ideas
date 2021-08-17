@@ -11,7 +11,7 @@
 
 import networkx as nx
 import random
-import numpy
+import numpy as np
 import math
 import statistics
 import csv
@@ -91,7 +91,7 @@ def sample_with_prob_without_replacement(elements, sample_size, weights):
 
   # if we have enough elements with non-zero probabilities, sample from those
   if sample_size <= len(non_zeros):
-    return numpy.random.choice(non_zeros, p=probs, size=sample_size, replace=False)
+    return np.random.choice(non_zeros, p=probs, size=sample_size, replace=False)
   else:
     # if we need more, take all the elements with non-zero probability
     # plus a random sample of the elements with zero probability
@@ -162,6 +162,8 @@ def init_net(preferential_targeting, verbose=False, targeting_criterion = 'hubs'
         raise ValueError('Unrecognized targeting_criterion passed to init_net')
     else:
       followers = random.sample(humans, n_followers)
+    for f in followers:
+      G.add_edge(f, b)
  
   return G
 
@@ -344,6 +346,13 @@ def simulation(preferential_targeting_flag,
   if network is None:
     network = init_net(preferential_targeting_flag, gamma=gamma)
   n_agents = nx.number_of_nodes(network)
+
+  # prepare for bookkeeping by resetting counters in case of notebook execution
+  track_memes.popularity = {}
+  track_memes.bad_popularity = {}
+  bot_model.get_meme.id = 0
+
+  # main loop
   old_quality = 1
   quality_diff = 1
   time_steps = 0
@@ -360,6 +369,15 @@ def simulation(preferential_targeting_flag,
     new_quality = 0.8 * old_quality + 0.2 * measure_average_quality(network)
     quality_diff = abs(new_quality - old_quality) / old_quality if old_quality > 0 else 0
     old_quality = new_quality
+
+  # remove live memes from popularity data, so track extinct memes only
+  if track_meme:
+    live_memes = set()
+    for agent in network.nodes:
+      live_memes.update(set(network.nodes[agent]['feed']))
+    for meme in live_memes:
+      track_memes.popularity.pop(meme, None)
+
   if return_net:
     return (new_quality, network)
   else:
