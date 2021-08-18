@@ -27,13 +27,14 @@ import bot_model
 # each filename is a csv with two columns, the first is the param and the second is average quality
 # each label is a string, eg r'$\gamma$'+'= 0.001'
 # xlabel is a string, eg r'$\theta$'
-def plot_avg_quality(data_files, labels, xlabel, log_flag=False, baseline=0.4803, path=""):
+def plot_avg_quality(data_files, labels, xlabel, log_flag=False, baseline=0.5, path=""):
     assert(len(data_files) == len(labels))
     if log_flag: plt.xscale('log')
     plt.xlabel(xlabel, fontsize=16)
     plt.ylabel('Relative Average Quality', fontsize=16)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
+    plt.ylim(bottom=0)
     for i in range(len(data_files)):
         data = {}
         with open(path+data_files[i], newline='') as f:
