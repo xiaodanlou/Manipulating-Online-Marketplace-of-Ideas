@@ -25,10 +25,11 @@ import bot_model
 # plot average quality (relative to baseline) vs given parameters, 
 #      for different values of other params (one per data file)
 # each filename is a csv with two columns, the first is the param and the second is average quality
-# each label is a string, eg r'$\gamma$'+'= 0.001'
+# each label is a string, eg r'$\gamma$=0.001'
 # xlabel is a string, eg r'$\theta$'
 def plot_avg_quality(data_files, labels, xlabel, log_flag=False, baseline=0.5, path=""):
     assert(len(data_files) == len(labels))
+    plt.gca().set_prop_cycle(plt.rcParams["axes.prop_cycle"] + plt.cycler(marker=list('.s*o^v<>+x')))
     if log_flag: plt.xscale('log')
     plt.xlabel(xlabel, fontsize=16)
     plt.ylabel('Relative Average Quality', fontsize=16)
@@ -141,26 +142,26 @@ def init_net(preferential_targeting, verbose=False, targeting_criterion = 'hubs'
 
   # humans follow bots
   if verbose: print('Humans following bots...')
-  w = [G.in_degree(h) for h in humans]
-  partisanship = [abs(float(G.nodes[h]['party'])) for h in humans]
-  misinformation = [float(G.nodes[h]['misinfo']) for h in humans]
-  conservative = [1 if float(G.nodes[h]['party']) > 0 else 0 for h in humans]
+  if preferential_targeting:
+    if targeting_criterion == 'hubs':
+      w = [G.in_degree(h) for h in humans]
+    elif targeting_criterion == 'partisanship':
+      w = [abs(float(G.nodes[h]['party'])) for h in humans]
+    elif targeting_criterion == 'misinformation':
+      w = [float(G.nodes[h]['misinfo']) for h in humans]
+    elif targeting_criterion == 'conservative':
+      w = [1 if float(G.nodes[h]['party']) > 0 else 0 for h in humans]
+    elif targeting_criterion == 'liberal':
+      w = [1 if float(G.nodes[h]['party']) < 0 else 0 for h in humans]
+    else:
+      raise ValueError('Unrecognized targeting_criterion passed to init_net')
   for b in bots:
     n_followers = 0
     for _ in humans:
       if random.random() < gamma:
         n_followers += 1
     if preferential_targeting:
-      if targeting_criterion == 'hubs':
-        followers = sample_with_prob_without_replacement(humans, n_followers, w)
-      elif targeting_criterion == 'partisanship':
-        followers = sample_with_prob_without_replacement(humans, n_followers, partisanship)
-      elif targeting_criterion == 'misinformation':
-        followers = sample_with_prob_without_replacement(humans, n_followers, misinformation)
-      elif targeting_criterion == 'conservative':
-        followers = sample_with_prob_without_replacement(humans, n_followers, conservative)
-      else:
-        raise ValueError('Unrecognized targeting_criterion passed to init_net')
+      followers = sample_with_prob_without_replacement(humans, n_followers, w)
     else:
       followers = random.sample(humans, n_followers)
     for f in followers:
